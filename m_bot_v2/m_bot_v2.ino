@@ -7,6 +7,8 @@
 	->nur noch bedingungen wann wie gefahren wird
 	->move+delay ist autom. coord update dabei
 	->rotation beinhaltet schon beides
+ ->wenn rotation erledigt: motor dreht so lange, wie liniensensor wieder was erkennt - funktion die nebenbei zeit misst benötigt. 
+         -delay funktion überarbeiten bzw coordinaten update auslagern in extra fun
 */
 
 #include <MeMCore.h>
@@ -26,7 +28,7 @@ MeIR ir;
 MeLEDMatrix ledMtx_1(1);
 
 float k = 0;
-int PI = 3.1415;
+const float PI = 3.1415;
 
 struct move_param{
 	int forward = 1;
@@ -34,7 +36,7 @@ struct move_param{
 	int turnLeft = 3;
 	int turnRight =4;
 	int speed=255;
-	int engine_speed_coeff = 0;
+	int engine_speed_coeff = 0; // engine_s_c = n/speed
 	int diameter = 0;
 	float wheelbase = 0;
 };
@@ -46,6 +48,8 @@ struct coordinate{
 };
 
 
+coordinates bot_coord;
+move_param bot_param;
 
 void move(const int dir, int speed) {
   int leftSpeed = 0;
@@ -79,9 +83,9 @@ void _delay(float seconds, move_param& param, coordinate& coord, bool CoordUpdat
 }
 
 void rotate_bot(move_param &param, coordinate & coord, float phi){ // phi in grad
-	param.phi += phi;
+	coord.phi += phi;
 	float theta = phi*(PI/180);
-	float t = (param.wheelbase*theta)/(param.speed*param.engine_speed_coeff*2*PI*(param.diameter/2)) // t = wb*theta/n*2*pi*r
+	float t = (param.wheelbase*theta)/(param.speed*param.engine_speed_coeff*2*PI*(param.diameter/2)); // t = wb*theta/n*2*pi*r
 	if(phi>0){
 		move(param.turnLeft, param.speed);
 	}if(phi<0){
@@ -134,8 +138,33 @@ void setup() {
   }
 
 }
+int phi = 2;
+bool firstCheck = false;
+int lastDir = bot_param.turnRight;
 
 void _loop() {
+		//check distance
+		
+		if (linefollower_2.readSensors() == 2.000000){ //right side dark
+				if(!firstCheck){		
+						firstCheck = true;
+				}
+				rotate_bot(bot_param, bot_coord, phi);
+				lastDir = 1;
+		}
+		if (linefollower_2.readSensors() == 1.000000){ //left side dark
+				if(!firstCheck){		
+						firstCheck = true;
+				}
+				rotate_bot(bot_param, bot_coord, -phi);
+				lastDir = -1;
+		}
+		if (linefollower_2.readSensors() == 3.000000){ //both are dark
+				if(!firstCheck){		
+						firstCheck = true;
+				}
+				rotate_bot(bot_param, bot_coord, lastDir*phi);
+		}			
 }
 
 void loop() {
