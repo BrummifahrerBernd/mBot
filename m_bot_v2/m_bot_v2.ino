@@ -29,7 +29,7 @@ MeIR ir;
 MeLEDMatrix ledMtx_1(1);
 
 float k = 0;
-const float PI = 3.1415;
+const double PI = 3.14159;
 
 struct move_param{
 	int forward = 1;
@@ -38,7 +38,7 @@ struct move_param{
 	int turnRight =4;
 	int speed=255;
 	int engine_speed_coeff = 0; // engine_s_c = n/speed
-	int diameter = 0;
+	float diameter = 0;
 	float wheelbase = 0;
 };
 
@@ -55,7 +55,7 @@ struct time{
 
 
 //-----vars------
-coordinates bot_coord;
+coordinate bot_coord;
 move_param bot_param;
 rotation_time = time;
 translation_time = time;
@@ -70,6 +70,13 @@ float timeVal = 0;
 bool is_turnig = false;
 bool circum_check = false;
 
+//-vars drive middle
+float cchecked_phi = 0;
+bool rot_90_check = false;
+float middle_time = 0;
+bool middle_check = false;
+float middle_x = 0;
+float middle_y = 0;
 
 void move(const int dir, int speed) {
   int leftSpeed = 0;
@@ -129,20 +136,21 @@ void rotate_bot_undefined(move_param &param, std::string direction){ // phi in g
 }
 
 void addCoordRot(move_param &param, coordinate& coord, time &tc){
-	float t = tc.time_end-tc.time_start;
+	float t = (tc.time_end-tc.time_start)/1000;
 	float phi_ = (t *  param.speed * param.engine_speed_coeff * param.diameter)/ param.wheelbase; //in rad
 	coord.phi += phi_;
 }
 
 void addCoordTrans(move_param &param, coordinate& coord, time &tc, std::vector<float> &list){
-	float t = tc.time_end-tc.time_start;
-	float delta = 2*PI*param.diameter*param.speed*t//v = 2pirn - v = s/t --> s = v*t = 2pirn*t
+	float t = (tc.time_end-tc.time_start)/1000;
+	float delta = PI*param.diameter*param.speed* param.engine_speed_coeff*t//v = 2pirn - v = s/t --> s = v*t = 2pirn*t
 	float delta_x = delta*std::cos(coord.phi);
 	float delta_y = delta*std::sin(coord.phi);
 	coord.x += delta_x; // 
 	coord.y += delta_y;
 	list.push_back((delta_x, delta_y))
 }
+
 
 double getLastTime(){
   return currentTime = millis() / 1000.0 - lastTime;
@@ -189,7 +197,7 @@ void _v1_loop() {
 /*
 ---------------------------v2.2-----------------------------------
 */
-void _v2_loop() {
+void _loop() {
 	if (!circum_check){
 		//check distance	--> maybe black always between sensors
 		if (linefollower_2.readSensors() == 2.000000){ //right side dark
@@ -223,18 +231,39 @@ void _v2_loop() {
 
 		}else {
 			is_turnig = false;
-			rotation_time.time_end = millis()
-			addCoordRot(bot_param, bot_coord, rotation_time)
-			translation_time.time_start = millis()
-			move(bot_param.forward, bot_param.speed)			
+			rotation_time.time_end = millis();
+			addCoordRot(bot_param, bot_coord, rotation_time);
+			translation_time.time_start = millis();
+			move(bot_param.forward, bot_param.speed);			
 		}
 	}
-	if (bot_coord.phi >=360){
+	if (bot_coord.phi >=2*PI){
 		circum_check = true;
+		cchecked_phi = bot_coord.phi; //obsoled --> gedacht falls rotate_bot_undefined verwendet wird
 		//... corner fit
 		//... calc
+		//... set middle points
 		//... show
 		//mabe multiple rounds
+	}
+	//driving back to middle
+	if(circum_check){ //move_param &param, coordinate & coord, float phi
+		if (!rot_90_check){ // drehung in mitte
+			rot_90_check = true;
+			if lastDirection == "LEFT"{ //richtige 90 grad bekommen
+				rotate_bot(bot_param, bot_coord, 90);
+			}else{
+				rotate_bot(bot_param, bot_coord, -90);
+			}
+		}else if(!middle_check){
+			middle_check = true;
+			//										speed									  /							hypothenuse --> nearly x-x_middle
+			middle_time = (bot_param.speed*bot_param.engine_speed_coeff*PI*bot_param.diameter)/std::sqrt((bot_coord.x - middle_x)*(bot_coord.x - middle_x)+(bot_coord.y-delta_y)*(bot_coord.y-delta_y))
+			move(bot_param.forward, bot_param.speed)
+			_delay(middle_time)
+		}else{
+			//--> steht im mittelpunkt ...fläche anzeige
+		}
 	}
 }
 
