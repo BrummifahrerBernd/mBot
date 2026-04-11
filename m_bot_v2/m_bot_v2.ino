@@ -31,7 +31,7 @@ MeLEDMatrix ledMtx_1(1);
 float k = 0;
 const double PI = 3.14159;
 
-struct move_param{
+static struct move_param{
 	int forward = 1;
 	int backward = 2;
 	int turnLeft = 3;
@@ -42,33 +42,49 @@ struct move_param{
 	float wheelbase = 0;
 };
 
-struct coordinate{
+static struct coordinate{
 	float x=0;
 	float y=0;
 	float phi = 0; //start in x
 };
 
-struct time{
+static struct time{
 	float time_start = 0;
 	float time_end = 0;
+};
+
+static enum class STATE{
+	TRANSLATION;
+	TURNING_LEFT,
+	TURNING_RIGHT,
+	FINISHED_CIRCUM,
+	FINISHED_ROTATION_MIDDLE,
+	FINISHED_MOVEMENT_MIDDLE,
 }
 
+bool second_part = false;
 
 //-----vars------
+STATE bot_state = STATE::TRANSLATION;
+STATE last_bot_state;
+
 coordinate bot_coord;
 move_param bot_param;
-rotation_time = time;
-translation_time = time;
+time rotation_time;
+time translation_time;
 
-std::vector<float> coord_list;
-coord_list.push_back((0,0)) // coord where first turn is starting
+float sensorValue = 0;
+std::vector<coordinate> coord_list;
+coordinate start_coord;
+coord_list.push_back(start_coord) // coord where first turn is starting
 int phi = 2;
 bool firstCheck = false;
 int lastDir = bot_param.turnRight;
-std::string lastDirection = "LEFT"
+std::string lastDirection = "LEFT";
 float timeVal = 0;
 bool is_turnig = false;
 bool circum_check = false;
+
 
 //-vars drive middle
 float cchecked_phi = 0;
@@ -130,7 +146,7 @@ void rotate_bot_undefined(move_param &param, std::string direction){ // phi in g
 	}else if(direction == "RIGHT"){
 		move(param.turnRight, param.speed);
 	}else{
-		return 0
+		return 0;
 	}
 
 }
@@ -143,14 +159,32 @@ void addCoordRot(move_param &param, coordinate& coord, time &tc){
 
 void addCoordTrans(move_param &param, coordinate& coord, time &tc, std::vector<float> &list){
 	float t = (tc.time_end-tc.time_start)/1000;
-	float delta = PI*param.diameter*param.speed* param.engine_speed_coeff*t//v = 2pirn - v = s/t --> s = v*t = 2pirn*t
+	float delta = PI*param.diameter*param.speed* param.engine_speed_coeff*t;//v = 2pirn - v = s/t --> s = v*t = 2pirn*t
 	float delta_x = delta*std::cos(coord.phi);
 	float delta_y = delta*std::sin(coord.phi);
 	coord.x += delta_x; // 
 	coord.y += delta_y;
-	list.push_back((delta_x, delta_y))
+	list.push_back(coord)
 }
 
+bool circumCheck(std::vector<coordinat> &coordlist, std::string circumdir){ //richtungsabhängig ?
+	int ignore_num = 2;
+	for(int i=0;i<coordlist.size;i++){
+		if(i>ignore_num){
+			if(coordlist[i].x<=coordlist[0].x && coordlist[i].x>=coordlist[ignore_num].x){
+				if(circumdir=="RIGHT"){
+					if(coordlist[i].y<=coordlist[0].y){
+						return true;
+					}
+				}else{
+					if(coordlist[i].y>=coordlist[0].y){
+						return true;
+					}
+				}
+			}
+		}
+	}
+}
 
 double getLastTime(){
   return currentTime = millis() / 1000.0 - lastTime;
@@ -196,7 +230,7 @@ void _v1_loop() {
 */
 /*
 ---------------------------v2.2-----------------------------------
-*/
+
 void _loop() {
 	if (!circum_check){
 		//check distance	--> maybe black always between sensors
@@ -237,7 +271,8 @@ void _loop() {
 			move(bot_param.forward, bot_param.speed);			
 		}
 	}
-	if (bot_coord.phi >=2*PI){
+	circum_check = circumCheck(coord_list, lastDirection);
+	if (bot_coord.phi >=2*PI){ // bedingun funktioniert nicht
 		circum_check = true;
 		cchecked_phi = bot_coord.phi; //obsoled --> gedacht falls rotate_bot_undefined verwendet wird
 		//... corner fit
@@ -267,7 +302,122 @@ void _loop() {
 	}
 }
 
+*/
+/*
+---------------------------v2.3----------------------------------- --> enum version
+*/
+void _loop() {
+	//read sensor
+	sensorValue = linefollower_2.readSensors();
+	//set states
+	//line following
+	if(bot_state == STATE::TRANSLATION){
+		if (sensorValue == 2.000000){ //right side dark
+			bot_state = STATE::TURNING_LEFT;
+		}
+		else if (sensorValue == 1.000000){ //right side dark
+			bot_state = STATE::TURNING_RIGHT;
+		}
+		else if (sensorValue == 3.000000){ //right side dark
+			if(last_bot_state == STATE::TURNING_LEFT){
+				bot_state = STATE::TURNING_LEFT;
+			}else if(last_bot_state == STATE::TURNING_RIGHT){
+				bot_state = STATE::TURNING_RIGHT;
+			}else{
+			bot_state = STATE::TURNING_LEFT; //begin cornering
+			}
+		}
+	}
+
+	//finishing
+	if(!second_part && circumCheck(coord_list, STATE::TURNING_LEFT)){
+		bot_state = STATE::FINISHED_CIRCUM;
+		second_part = true;
+	}
+
+	/////>>>>>>>>>>>>>würde ich gerne mal testen<<<<<<<<<<<<<</////////////////
+
+	/*if(bot_state == STATE::TURNING_LEFT || bot_state == STATE::TURNING_RIGHT){
+		if(sensorValue == 0){ //no dark 
+			bot_state = STATE::TRANSLATION;
+		}
+	}*/
+
+	//exec state
+	switch(bot_state){
+		case STATE::TURNING_LEFT:
+			if(bot_state != last_bot_state){
+				translation_time.time_end = millis();
+				addCoordTrans(bot_param, bot_coord, translation_time, coord_list)
+				rotation_time.time_start = millis();
+			}
+			rotate_bot_undefined(bot_param, "LEFT");
+			lastDirection = "LEFT";
+
+			//exit hier weil chatGPT das sagt
+			sensorValue = linefollower_2.readSensors();
+			if(sensorValue == 0){ //no dark 
+				bot_state = STATE::TRANSLATION;
+			}
+			break;
+
+		case STATE::TURNING_RIGHT:
+			if(bot_state != last_bot_state){
+				translation_time.time_end = millis();
+				addCoordTrans(bot_param, bot_coord, translation_time, coord_list)
+				rotation_time.time_start = millis();
+			}
+			rotate_bot_undefined(bot_param, "RIGHT");
+			lastDirection = "RIGHT";
+			
+			//exit
+			sensorValue = linefollower_2.readSensors();
+			if(sensorValue == 0){ //no dark 
+				bot_state = STATE::TRANSLATION;
+			}
+			break;
+		
+		case STATE::TRANSLATION:
+			if(bot_state != last_bot_state){
+				rotation_time.time_end = millis();
+				addCoordRot(bot_param, bot_coord, rotation_time);
+				translation_time.time_start = millis();
+			}
+			move(bot_param.forward, bot_param.speed);
+			break;
+
+		case STATE::FINISHED_CIRCUM:
+			//... corner fit
+			//... calc
+			//... set middle points
+			//... show
+			//mabe multiple rounds
+			if lastDirection == "LEFT"{ //richtige 90 grad bekommen
+				rotate_bot(bot_param, bot_coord, 90);
+			}else{
+				rotate_bot(bot_param, bot_coord, -90);
+			}
+			bot_state = STATE::FINISHED_ROTATION_MIDDLE;
+			break;
+
+		case STATE::FINISHED_ROTATION_MIDDLE:
+			//										speed									  /							hypothenuse --> nearly x-x_middle
+			middle_time = (bot_param.speed*bot_param.engine_speed_coeff*PI*bot_param.diameter)/std::sqrt((bot_coord.x - middle_x)*(bot_coord.x - middle_x)+(bot_coord.y-delta_y)*(bot_coord.y-delta_y));
+			move(bot_param.forward, bot_param.speed);
+			_delay(middle_time);
+			bot_state = STATE::FINISHED_MOVEMENT_MIDDLE;
+			break;
+		
+		case STATE::FINISHED_MOVEMENT_MIDDLE:
+			//print result
+
+	}
+	last_bot_state = bot_state;
+
+}
+
+
 void loop() {
-  _v2_loop();
+  _loop();
 }
 
