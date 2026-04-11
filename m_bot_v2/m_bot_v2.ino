@@ -16,6 +16,7 @@
 #include <Wire.h>
 #include <SoftwareSerial.h>
 #include <cmath.h>
+#include <vector>
 
 MeLightSensor lightsensor_6(6);
 MeDCMotor motor_9(9);
@@ -47,9 +48,28 @@ struct coordinate{
 	float phi = 0; //start in x
 };
 
+struct time{
+	float time_start = 0;
+	float time_end = 0;
+}
 
+
+//-----vars------
 coordinates bot_coord;
 move_param bot_param;
+rotation_time = time;
+translation_time = time;
+
+std::vector<float> coord_list;
+coord_list.push_back((0,0)) // coord where first turn is starting
+int phi = 2;
+bool firstCheck = false;
+int lastDir = bot_param.turnRight;
+std::string lastDirection = "LEFT"
+float timeVal = 0;
+bool is_turnig = false;
+bool circum_check = false;
+
 
 void move(const int dir, int speed) {
   int leftSpeed = 0;
@@ -82,6 +102,7 @@ void _delay(float seconds, move_param& param, coordinate& coord, bool CoordUpdat
 	}
 }
 
+// for v2.1
 void rotate_bot(move_param &param, coordinate & coord, float phi){ // phi in grad
 	coord.phi += phi;
 	float theta = phi*(PI/180);
@@ -95,6 +116,34 @@ void rotate_bot(move_param &param, coordinate & coord, float phi){ // phi in gra
 
 }
 
+//for v2.2
+void rotate_bot_undefined(move_param &param, std::string direction){ // phi in grad
+	if(direction == "LEFT"){
+		move(param.turnLeft, param.speed);
+	}else if(direction == "RIGHT"){
+		move(param.turnRight, param.speed);
+	}else{
+		return 0
+	}
+
+}
+
+void addCoordRot(move_param &param, coordinate& coord, time &tc){
+	float t = tc.time_end-tc.time_start;
+	float phi_ = (t *  param.speed * param.engine_speed_coeff * param.diameter)/ param.wheelbase; //in rad
+	coord.phi += phi_;
+}
+
+void addCoordTrans(move_param &param, coordinate& coord, time &tc, std::vector<float> &list){
+	float t = tc.time_end-tc.time_start;
+	float delta = 2*PI*param.diameter*param.speed*t//v = 2pirn - v = s/t --> s = v*t = 2pirn*t
+	float delta_x = delta*std::cos(coord.phi);
+	float delta_y = delta*std::sin(coord.phi);
+	coord.x += delta_x; // 
+	coord.y += delta_y;
+	list.push_back((delta_x, delta_y))
+}
+
 double getLastTime(){
   return currentTime = millis() / 1000.0 - lastTime;
 }
@@ -105,48 +154,17 @@ void setup() {
   ir.begin();
   ledMtx_1.setColorIndex(1);
   ledMtx_1.setBrightness(6);
-  if(lightsensor_6.read() == 1.000000){
-
-    move(1, 50 / 100.0 * 255);
-    _delay(1);
-    move(1, 0);
-
-  }
-  if(linefollower_2.readSensors() == 2.000000){
-
-    move(2, 50 / 100.0 * 255);
-    _delay(1);
-    move(2, 0);
-
-  }
-  if(ultrasonic_3.distanceCm() < 3){
-
-    move(3, 50 / 100.0 * 255);
-    _delay(1);
-    move(3, 0);
-
-  }
-  if(getLastTime() == 4.000000){
-    ir.sendString("hello");
-    ledMtx_1.drawStr(0, 0 + 7, String("hello").c_str());
-    motor_9.run(0);
-    motor_10.run(0);
-
-    motor_9.run(-1 * 50/100.0*255);
-    motor_10.run(50/100.0*255);
-
-  }
-
+  
 }
-int phi = 2;
-bool firstCheck = false;
-int lastDir = bot_param.turnRight;
 
-void _loop() {
+/*
+---------------------------v2.1-----------------------------------
+
+void _v1_loop() {
 		//check distance
 		
 		if (linefollower_2.readSensors() == 2.000000){ //right side dark
-				if(!firstCheck){		
+				if(!firstCheck){		//defines start of circum
 						firstCheck = true;
 				}
 				rotate_bot(bot_param, bot_coord, phi);
@@ -164,10 +182,63 @@ void _loop() {
 						firstCheck = true;
 				}
 				rotate_bot(bot_param, bot_coord, lastDir*phi);
-		}			
+		}
+		move(bot_param.forward, bot_param.speed)			
+}
+*/
+/*
+---------------------------v2.2-----------------------------------
+*/
+void _v2_loop() {
+	if (!circum_check){
+		//check distance	--> maybe black always between sensors
+		if (linefollower_2.readSensors() == 2.000000){ //right side dark
+			if (!is_turnig){
+				translation_time.time_end = millis();
+				addCoordTrans(bot_param, bot_coord, translation_time, coord_list)
+				rotation_time.time_start = millis();
+				rotate_bot_undefined(bot_param, "LEFT");
+				is_turnig = true;
+			}
+			lastDirection = "LEFT";
+		}
+		else if (linefollower_2.readSensors() == 1.000000){ //left side dark
+			if (!is_turnig){
+				translation_time.time_end = millis();
+				addCoordTrans(bot_param, bot_coord, translation_time, coord_list)
+				rotation_time.time_start = millis();
+				rotate_bot_undefined(bot_param, "RIGHT");
+				is_turnig = true;
+			}
+			lastDirection = "RIGHT";
+		}
+		else if (linefollower_2.readSensors() == 3.000000){ //both are dark
+			if (!is_turnig){
+				translation_time.time_end = millis();
+				addCoordTrans(bot_param, bot_coord, translation_time, coord_list)
+				rotation_time.time_start = millis();
+				rotate_bot_undefined(bot_param, lastDirection);
+				is_turnig = true;
+			}
+
+		}else {
+			is_turnig = false;
+			rotation_time.time_end = millis()
+			addCoordRot(bot_param, bot_coord, rotation_time)
+			translation_time.time_start = millis()
+			move(bot_param.forward, bot_param.speed)			
+		}
+	}
+	if (bot_coord.phi >=360){
+		circum_check = true;
+		//... corner fit
+		//... calc
+		//... show
+		//mabe multiple rounds
+	}
 }
 
 void loop() {
-  _loop();
+  _v2_loop();
 }
 
