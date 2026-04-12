@@ -90,6 +90,8 @@ float middle_time = 0;
 bool middle_check = false;
 float middle_x = 0;
 float middle_y = 0;
+float fitted_r = 0;
+float face = 0;
 
 void move(const int dir, int speed) {
   int leftSpeed = 0;
@@ -238,7 +240,7 @@ void optimizeSystem(const matlib::Matrix &JacobiMat, const std::vector<double> &
 	matlib::AUTO_linsolve_CG(A.getVec(), b, convergence, false, delta);
 }
 
-float circularFit(const float convergence, const std::vector<coordinat> &coord_list){
+float r_circularFit(const float convergence, const std::vector<coordinat> &coord_list){
 	float lampda = 1; // nur ändern falls numerisch instabil!!! dann: lampda<1
 	float xc = 0;
 	float yc = 0;
@@ -477,10 +479,11 @@ void _loop() {
 			break;
 
 		case STATE::FINISHED_CIRCUM:
-			//... corner fit
-			//... calc
-			//... set middle points
-			//... show
+			fitted_r = r_circularFit(coord_list);
+			face = pi*fitted_r*fitted_r;
+			middle_x = -fitted_r; //davon ausgehend, dass startpunkt 0,0 ist
+			middle_y = 0;
+			//... show calculating
 			//mabe multiple rounds
 			if lastDirection == "LEFT"{ //richtige 90 grad bekommen
 				rotate_bot(bot_param, bot_coord, 90);
