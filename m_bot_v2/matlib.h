@@ -158,7 +158,7 @@ csr sparse_csr(const Matrix& A) { //[values, col_index, row_ptr]
 
 
 
-bool AUTO_linsolve_CG(const Matrix A, const std::vector<double> b, const long double convergence = 0.0000000000001, const bool printProgress = true, std::vector<double>& x) {
+bool AUTO_linsolve_CG(const Matrix A, const std::vector<double> b, std::vector<double>& x, const long double convergence = 0.0000000000001, const bool printProgress = true) {
 
     //-------python-->cpp-------
     int n = b.size();

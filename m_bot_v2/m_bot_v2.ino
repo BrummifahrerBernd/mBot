@@ -236,7 +236,7 @@ void optimizeSystem(const matlib::Matrix &JacobiMat, const std::vector<double> &
 	for (auto &v : b) v *= -1;
 
 	// delta initial guess
-	matlib::AUTO_linsolve_CG(A, b, convergence, false, delta);
+	matlib::AUTO_linsolve_CG(A, b, delta, convergence, false);
 }
 
 float r_circularFit(const float convergence, const std::vector<coordinate> &coord_list){
