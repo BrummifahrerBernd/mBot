@@ -3,12 +3,8 @@
 
 /*
 	--todo--
-	->movement und rotation fertig
-	->nur noch bedingungen wann wie gefahren wird
-	->move+delay ist autom. coord update dabei
-	->rotation beinhaltet schon beides
- ->wenn rotation erledigt: motor dreht so lange, wie liniensensor wieder was erkennt - funktion die nebenbei zeit misst benötigt. 
-         -delay funktion überarbeiten bzw coordinaten update auslagern in extra fun
+	--> matlib mat_vec multiplication kontrollieren. generell cg kontrollieren
+	--> kreis fit mit cg solver und newton linearisierung
 */
 
 #include <MeMCore.h>
@@ -17,6 +13,7 @@
 #include <SoftwareSerial.h>
 #include <cmath.h>
 #include <vector>
+#include <matlib.h>
 
 MeLightSensor lightsensor_6(6);
 MeDCMotor motor_9(9);
