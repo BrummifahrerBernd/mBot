@@ -45,7 +45,7 @@ static struct coordinate{
 	float phi = 0; //start in x
 };
 
-static struct time{
+static struct _time{
 	float time_start = 0;
 	float time_end = 0;
 };
@@ -67,13 +67,12 @@ STATE last_bot_state;
 
 coordinate bot_coord;
 move_param bot_param;
-time rotation_time;
-time translation_time;
+_time rotation_time;
+_time translation_time;
 
 float sensorValue = 0;
 std::vector<coordinate> coord_list;
 coordinate start_coord;
-coord_list.push_back(start_coord) // coord where first turn is starting
 int phi = 2;
 bool firstCheck = false;
 int lastDir = bot_param.turnRight;
@@ -150,13 +149,13 @@ void rotate_bot_undefined(move_param &param, std::string direction){ // phi in g
 
 }
 
-void addCoordRot(move_param &param, coordinate& coord, time &tc){
+void addCoordRot(move_param &param, coordinate& coord, _time &tc){
 	float t = (tc.time_end-tc.time_start)/1000;
 	float phi_ = (t *  param.speed * param.engine_speed_coeff * param.diameter)/ param.wheelbase; //in rad
 	coord.phi += phi_;
 }
 
-void addCoordTrans(move_param &param, coordinate& coord, time &tc, std::vector<float> &list){
+void addCoordTrans(move_param &param, coordinate& coord, _time &tc, std::vector<float> &list){
 	float t = (tc.time_end-tc.time_start)/1000;
 	float delta = PI*param.diameter*param.speed* param.engine_speed_coeff*t;//v = 2pirn - v = s/t --> s = v*t = 2pirn*t
 	float delta_x = delta*std::cos(coord.phi);
@@ -201,7 +200,7 @@ matlib::Matrix getCoordinateVec(const std::vector<coordinate> &coord_list){
 	}
 	return res;
 }
-std::vector<double> getResidualVec(const matlib::Matrix &coord_vec, const float &empty_xc, const float &empty_yc, const float &r,){ //estimation of circle
+std::vector<double> getResidualVec(const matlib::Matrix &coord_vec, const float &empty_xc, const float &empty_yc, const float &r){ //estimation of circle
 	int n = coord_vec.row_size();
 	std::vector<double> res(n,0);
 	for (int i=0;i<n;i++){
@@ -233,14 +232,14 @@ void optimizeSystem(const matlib::Matrix &JacobiMat, const std::vector<double> &
 	matlib::Matrix A = matlib::symm_mat_multiplication(T_J, JacobiMat);
 
 	// b = -J^T r
-	std::vector<double> b = mat_vec_multiplication(T_J, residual);
+	std::vector<double> b = mat_vec_multiplication(T_J.getVec(), residual);
 	for (auto &v : b) v *= -1;
 
 	// delta initial guess
-	matlib::AUTO_linsolve_CG(A.getVec(), b, convergence, false, delta);
+	matlib::AUTO_linsolve_CG(A, b, convergence, false, delta);
 }
 
-float r_circularFit(const float convergence, const std::vector<coordinat> &coord_list){
+float r_circularFit(const float convergence, const std::vector<coordinate> &coord_list){
 	float lampda = 1; // nur ändern falls numerisch instabil!!! dann: lampda<1
 	float xc = 0;
 	float yc = 0;
@@ -288,6 +287,8 @@ void setup() {
   ir.begin();
   ledMtx_1.setColorIndex(1);
   ledMtx_1.setBrightness(6);
+  coord_list.push_back(start_coord); // coord where first turn is starting
+
   
 }
 
