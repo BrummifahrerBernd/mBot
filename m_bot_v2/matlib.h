@@ -21,9 +21,39 @@ struct Matrix {
     size_t size() const { return data.size(); }  // gibt nrows*ncols zurück
     int row_size() const { return nrows; }
     int col_size() const { return ncols; }
+    std::vector<double> getVec() const{return data;}
 };
 
 //-------cpp functions------
+
+
+Matrix symm_mat_multiplication(const Matrix &A, const Matrix &B){
+    int n = A.col_size();
+    Matrix result;
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            result(i,j) = 0.0;
+            for (int k = 0; k < 3; k++) {
+                result(i,j) += A(i,j) * B(i,j);
+            }
+        }
+    }
+    return result;
+}
+
+void transpose(Matrix &mat){
+    int n = mat.row_size;
+    Matrix newMat;
+    newMat.row_size() = n;   
+    newMat.col_size() = n;
+    for(int i=0;i<n;i++){
+        for(int j=0;j<n;j++){
+            newMat(j,i)= mat(i,j);
+        }
+    }
+    mat = newMat;
+}
+
 
 std::vector<double> mat_vec_multiplication(const std::vector<double> &A, const std::vector<double> & b){
     std::vector<double> result(b.size(),0);
