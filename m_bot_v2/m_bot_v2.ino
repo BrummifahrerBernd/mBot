@@ -190,96 +190,108 @@ double getLastTime(){
 
 
 //------mathematic stuff--------
-matlib::Matrix getCoordinateVec(const std::vector<coordinate> &coord_list){
-	matlib::Matrix res;
-	res.nrows = coord_list.size();
-	res.ncols = 2;
-	for (int i=0;i<coord_list.size();i++){
-		res(i,0) = coord_list[i].x;
-		res(i,1) = coord_list[i].y;
-	}
-	return res;
+matlib::Matrix getCoordinateVec(const std::vector<coordinate>& coord_list) {
+    matlib::Matrix res;
+    res.nrows = coord_list.size();
+    res.ncols = 2;
+    std::vector<double> data(res.alloc_size(), 0);
+    res.data = data;
+    for (int i = 0; i < res.row_size(); i++) {
+        res(i, 0) = coord_list[i].x;
+        res(i, 1) = coord_list[i].y;
+    }
+    return res;
 }
-std::vector<double> getResidualVec(const matlib::Matrix &coord_vec, const float &empty_xc, const float &empty_yc, const float &r){ //estimation of circle
-	int n = coord_vec.row_size();
-	std::vector<double> res(n,0);
-	for (int i=0;i<n;i++){
-		res[i]=(coord_vec(i,0)-empty_xc)*(coord_vec(i,0)-empty_xc)+(coord_vec(i,1)-empty_yc)*(coord_vec(i,1)-empty_yc)-(r*r);
-	}
-	return res;
-}
-
-matlib::Matrix getJacobiMatrix(const matlib::Matrix &coords, const float& xc, const float& yc, const float &r){ //fehler: r=(x,y) --> dri/dx, dri/dy, dri/dr
-	int n = coords.row_size();
-	matlib::Matrix res;
-	res.ncols = 3;
-	res.nrows = n; 
-	for (int i = 0;i<n;i++){
-		res(i,0) = -2*(coords(i,0)-xc);
-		res(i,1) = -2*(coords(i,1)-yc);
-		res(i,2) = -2*r;
-	}
-	return res;
+std::vector<double> getResidualVec(const matlib::Matrix& coord_vec, const float& empty_xc, const float& empty_yc, const float& r) { //estimation of circle
+    int n = coord_vec.row_size();
+    std::vector<double> res(n, 0);
+    for (int i = 0; i < n; i++) {
+        res[i] = (coord_vec(i, 0) - empty_xc) * (coord_vec(i, 0) - empty_xc) + (coord_vec(i, 1) - empty_yc) * (coord_vec(i, 1) - empty_yc) - (r * r);
+    }
+    return res;
 }
 
-void optimizeSystem(const matlib::Matrix &JacobiMat, const std::vector<double> &residual, std::vector<double> &delta, const float convergence = 1e-9){
-	delta[0]=0;
-	delta[1]=0;
-	delta[2]=0;
-	matlib::Matrix T_J = JacobiMat;
-	matlib::transpose(T_J);
-
-	matlib::Matrix A = matlib::symm_mat_multiplication(T_J, JacobiMat);
-
-	// b = -J^T r
-	std::vector<double> b = mat_vec_multiplication(T_J.getVec(), residual);
-	for (auto &v : b) v *= -1;
-
-	// delta initial guess
-	matlib::AUTO_linsolve_CG(A, b, delta, convergence, false);
+matlib::Matrix getJacobiMatrix(const matlib::Matrix& coords, const float& xc, const float& yc, const float& r) { //fehler: r=(x,y) --> dri/dx, dri/dy, dri/dr
+    int n = coords.row_size();
+    matlib::Matrix res;
+    res.ncols = 3;
+    res.nrows = n;
+    std::vector<double> data(res.alloc_size(), 0); //for alloc vec
+    res.data = data;
+    for (int i = 0; i < n; i++) {
+        res(i, 0) = -2 * (coords(i, 0) - xc);
+        res(i, 1) = -2 * (coords(i, 1) - yc);
+        res(i, 2) = -2 * r;
+    }
+    return res;
 }
 
-float r_circularFit(const float convergence, const std::vector<coordinate> &coord_list){
-	float lampda = 1; // nur ändern falls numerisch instabil!!! dann: lampda<1
-	float xc = 0;
-	float yc = 0;
-	float r = 0;
-	float norm = 1; // damit in schleife geht
-	int iter = 0;
-	std::vector<double> delta(3,0);
-	matlib::Matrix coord_vec = getCoordinateVec(coord_list);
+void optimizeSystem(const matlib::Matrix JacobiMat, const std::vector<double>& residual, std::vector<double>& delta, const float convergence = 1e-9) {
+    delta[0] = 0;
+    delta[1] = 0;
+    delta[2] = 0;
+    matlib::Matrix T_J = JacobiMat;
+    transpose(T_J);
+    //replace for transpose -- little bit hacky
+    //std::vector<double> T_J_data = matlib::r_transpose(JacobiMat.getVec(), JacobiMat.col_size(), JacobiMat.row_size());
+    //matlib::transpose(T_J);
+    //matlib::Matrix T_J;
+    //T_J.ncols = JacobiMat.row_size();
+    //T_J.nrows = JacobiMat.col_size();
+    //T_J.data = T_J_data;
+    matlib::Matrix A = matlib::mat_multiplication(T_J, JacobiMat);
 
-	//initial guess
-	int n = coord_vec.row_size();
-	float xsum = 0;
-	float ysum = 0;
-	float rsum = 0;
-	for (int i=0;i<n;i++){
-		xsum+=coord_vec(i,0);
-		ysum+=coord_vec(i,1);
-	}
-	xc = xsum/n;  
-	yc = ysum/n; 
-	for (int i=0;i<n;i++){
-		rsum+=std::sqrt((coord_vec(i,0)-xc)*(coord_vec(i,0)-xc)+(coord_vec(i,1)-yc)*(coord_vec(i,1)-yc));
-	} 
-	r = rsum/n;   
 
-	//newton gauss
-	while (norm >= convergence*convergence){
-		if(iter>10000){
-			break;
-		}
-		std::vector<double> residual = getResidualVec(coord_vec, xc, yc, r);
-		matlib::Matrix J = getJacobiMatrix(coord_vec, xc, yc, r);
-		optimizeSystem(J, residual,delta);
-		xc += lampda*delta[0];
-		yc+= lampda*delta[1];
-		r+=lampda*delta[2]; 
-		norm = (delta[0]*delta[0])+(delta[1]*delta[1])+(delta[2]*delta[2]);
-		iter++;
-	}
-	return r;
+    // b = -J^T r
+    std::vector<double> b = matlib::mat_vec_multiplication(T_J, residual);
+    for (auto& v : b) v *= -1; // for sign
+
+    // delta initial guess
+    matlib::AUTO_linsolve_CG(A, b, delta, convergence, false);
+
+}
+
+float r_circularFit(const float convergence, const std::vector<coordinate>& coord_list) {
+    float lampda = 1; // nur ändern falls numerisch instabil!!! dann: lampda<1
+    float xc = 0;
+    float yc = 0;
+    float r = 0;
+    float norm = 1; // damit in schleife geht
+    int iter = 0;
+    std::vector<double> delta(3, 0);
+    matlib::Matrix coord_vec = getCoordinateVec(coord_list);
+
+    //initial guess
+    int n = coord_vec.row_size();
+    float xsum = 0;
+    float ysum = 0;
+    float rsum = 0;
+    for (int i = 0; i < n; i++) {
+        xsum += coord_vec(i, 0);
+        ysum += coord_vec(i, 1);
+    }
+    xc = xsum / n;
+    yc = ysum / n;
+    for (int i = 0; i < n; i++) {
+        rsum += std::sqrt((coord_vec(i, 0) - xc) * (coord_vec(i, 0) - xc) + (coord_vec(i, 1) - yc) * (coord_vec(i, 1) - yc));
+    }
+    r = rsum / n;
+
+    //newton gauss
+    while (norm >= convergence * convergence) {
+        if (iter > 10000) {
+            break;
+        }
+        std::vector<double> residual = getResidualVec(coord_vec, xc, yc, r);
+        matlib::Matrix J = getJacobiMatrix(coord_vec, xc, yc, r);
+        optimizeSystem(J, residual, delta);
+        xc += lampda * delta[0];
+        yc += lampda * delta[1];
+        r += lampda * delta[2];
+        norm = (delta[0] * delta[0]) + (delta[1] * delta[1]) + (delta[2] * delta[2]);
+        iter++;
+    }
+    return r;
 
 }
 

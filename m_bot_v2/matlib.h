@@ -17,9 +17,48 @@ struct Matrix {
     std::vector<double> data;
     int nrows, ncols;
 
-    double& operator()(int i, int j) { return data[i * ncols + j]; }
-    const double& operator()(int i, int j) const { return data[i * ncols + j]; }
+    //double& operator()(int i, int j) { return data[i * ncols + j]; }
+    //const double& operator()(int i, int j) const { return data[i * ncols + j]; }
+    double& operator()(int i, int j) {
+        if (i < 0 || j < 0 || i >= nrows || j >= ncols) {
+            std::cout << "INDEX ERROR: i=" << i << " j=" << j
+                << " nrows=" << nrows << " ncols=" << ncols << std::endl;
+            throw std::out_of_range("bad index");
+        }
+
+        size_t idx = static_cast<size_t>(i) * ncols + j;
+
+        if (idx >= data.size()) {
+            std::cout << "DATA ERROR: idx=" << idx
+                << " size=" << data.size()
+                << " i=" << i << " j=" << j
+                << " ncols=" << ncols << std::endl;
+            throw std::out_of_range("bad index");
+        }
+
+        return data[idx];
+    }
+    const double& operator()(int i, int j) const  {
+        if (i < 0 || j < 0 || i >= nrows || j >= ncols) {
+            std::cout << "INDEX ERROR: i=" << i << " j=" << j
+                << " nrows=" << nrows << " ncols=" << ncols << std::endl;
+            throw std::out_of_range("bad index");
+        }
+
+        size_t idx = static_cast<size_t>(i) * ncols + j;
+
+        if (idx >= data.size()) {
+            std::cout << "DATA ERROR: idx=" << idx
+                << " size=" << data.size()
+                << " i=" << i << " j=" << j
+                << " ncols=" << ncols << std::endl;
+            throw std::out_of_range("bad index");
+        }
+
+        return data[idx];
+    }
     size_t size() const { return data.size(); }  // gibt nrows*ncols zurück
+    size_t alloc_size() const { return nrows*ncols; }  // gibt nrows*ncols zurück
     int row_size() const { return nrows; }
     int col_size() const { return ncols; }
     std::vector<double> getVec() const { return data; }
@@ -28,14 +67,22 @@ struct Matrix {
 //-------cpp functions------
 
 
-Matrix symm_mat_multiplication(const Matrix& A, const Matrix& B) {
-    int n = A.col_size();
+Matrix mat_multiplication(const Matrix& A, const Matrix& B) {
+    unsigned int rows = A.row_size();
+    unsigned int cols = B.col_size();
+    if (A.col_size() != B.row_size()) {
+        std::cout << "Matrizies doesnt match!\n";
+    }
     Matrix result;
-    for (int i = 0; i < n; i++) {
-        for (int j = 0; j < n; j++) {
-            result(i, j) = 0.0;
-            for (int k = 0; k < 3; k++) {
-                result(i, j) += A(i, j) * B(i, j);
+    result.ncols = cols;
+    result.nrows = rows;
+    std::vector<double> data(result.alloc_size(), 0);
+    result.data = data;
+    // get vecs
+    for (int i = 0; i < rows; i++) {//getting indices for result
+        for (int j = 0; j < cols; j++) {
+            for (int k = 0; k < A.col_size(); k++) { //sum loop
+                result(i, j) += A(i, k) * B(k, j);    
             }
         }
     }
@@ -43,26 +90,32 @@ Matrix symm_mat_multiplication(const Matrix& A, const Matrix& B) {
 }
 
 void transpose(Matrix& mat) {
-    int n = mat.row_size();
+    int rows = mat.row_size();
+    int cols = mat.col_size();
     Matrix newMat;
-    newMat.nrows = n;
-    newMat.ncols = n;
-    for (int i = 0; i < n; i++) {
-        for (int j = 0; j < n; j++) {
+    newMat.nrows = cols; //vertauscht wegen transponiert!!!
+    newMat.ncols = rows;
+    std::vector<double> data(newMat.alloc_size(), 0);
+    newMat.data = data;
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
             newMat(j, i) = mat(i, j);
         }
     }
     mat = newMat;
 }
 
+std::vector<double> mat_vec_multiplication(const matlib::Matrix& A, const std::vector<double>& b) {
+    if (A.col_size() != b.size()) {
+        std::cout << "Mat and Vec doesnt match!\n";
+    }
+    unsigned int cols = A.col_size();
+    unsigned int rows = A.row_size();
+    std::vector<double> result(rows, 0);
+    for (int i = 0; i < rows; i++) { //result vec
 
-std::vector<double> mat_vec_multiplication(const std::vector<double>& A, const std::vector<double>& b) {
-    float n = b.size();
-    std::vector<double> result(b.size(), 0);
-    for (int k = 0; k < b.size(); k++) {
-
-        for (int j = 0; j < b.size(); j++) {
-            result[k] += A[k * n + j] * b[j];
+        for (int k = 0; k < cols; k++) { //calculation
+            result[i] += A(i, k) * b[k];
         }
     }
     return result;
@@ -180,7 +233,7 @@ bool AUTO_linsolve_CG(const Matrix A, const std::vector<double> b, std::vector<d
     //double percentage = 0.0;
 
     //init r_old
-    std::vector<double> Ax = mat_vec_multiplication(A.getVec(), x);
+    std::vector<double> Ax = mat_vec_multiplication(A, x);
     r_old = vec_substraction(b, Ax);
     p_old = r_old;
 
@@ -263,8 +316,5 @@ bool AUTO_linsolve_CG(const Matrix A, const std::vector<double> b, std::vector<d
     else {
         return true;
     }
-
-
 }
-
 

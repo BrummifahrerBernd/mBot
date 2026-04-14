@@ -80,9 +80,48 @@ namespace matlib {
         std::vector<double> data;
         int nrows, ncols;
 
-        double& operator()(int i, int j) { return data[i * ncols + j]; }
-        const double& operator()(int i, int j) const { return data[i * ncols + j]; }
+        //double& operator()(int i, int j) { return data[i * ncols + j]; }
+        //const double& operator()(int i, int j) const { return data[i * ncols + j]; }
+        double& operator()(int i, int j) {
+            if (i < 0 || j < 0 || i >= nrows || j >= ncols) {
+                std::cout << "INDEX ERROR: i=" << i << " j=" << j
+                    << " nrows=" << nrows << " ncols=" << ncols << std::endl;
+                throw std::out_of_range("bad index");
+            }
+
+            size_t idx = static_cast<size_t>(i) * ncols + j;
+
+            if (idx >= data.size()) {
+                std::cout << "DATA ERROR: idx=" << idx
+                    << " size=" << data.size()
+                    << " i=" << i << " j=" << j
+                    << " ncols=" << ncols << std::endl;
+                throw std::out_of_range("bad index");
+            }
+
+            return data[idx];
+        }
+        const double& operator()(int i, int j) const  {
+            if (i < 0 || j < 0 || i >= nrows || j >= ncols) {
+                std::cout << "INDEX ERROR: i=" << i << " j=" << j
+                    << " nrows=" << nrows << " ncols=" << ncols << std::endl;
+                throw std::out_of_range("bad index");
+            }
+
+            size_t idx = static_cast<size_t>(i) * ncols + j;
+
+            if (idx >= data.size()) {
+                std::cout << "DATA ERROR: idx=" << idx
+                    << " size=" << data.size()
+                    << " i=" << i << " j=" << j
+                    << " ncols=" << ncols << std::endl;
+                throw std::out_of_range("bad index");
+            }
+
+            return data[idx];
+        }
         size_t size() const { return data.size(); }  // gibt nrows*ncols zurück
+        size_t alloc_size() const { return nrows*ncols; }  // gibt nrows*ncols zurück
         int row_size() const { return nrows; }
         int col_size() const { return ncols; }
         std::vector<double> getVec() const { return data; }
@@ -91,14 +130,22 @@ namespace matlib {
     //-------cpp functions------
 
 
-    Matrix symm_mat_multiplication(const Matrix& A, const Matrix& B) {
-        int n = A.col_size();
+    Matrix mat_multiplication(const Matrix& A, const Matrix& B) {
+        unsigned int rows = A.row_size();
+        unsigned int cols = B.col_size();
+        if (A.col_size() != B.row_size()) {
+            std::cout << "Matrizies doesnt match!\n";
+        }
         Matrix result;
-        for (int i = 0; i < n; i++) {
-            for (int j = 0; j < n; j++) {
-                result(i, j) = 0.0;
-                for (int k = 0; k < 3; k++) {
-                    result(i, j) += A(i, j) * B(i, j);
+        result.ncols = cols;
+        result.nrows = rows;
+        std::vector<double> data(result.alloc_size(), 0);
+        result.data = data;
+        // get vecs
+        for (int i = 0; i < rows; i++) {//getting indices for result
+            for (int j = 0; j < cols; j++) {
+                for (int k = 0; k < A.col_size(); k++) { //sum loop
+                    result(i, j) += A(i, k) * B(k, j);    
                 }
             }
         }
@@ -106,26 +153,32 @@ namespace matlib {
     }
 
     void transpose(Matrix& mat) {
-        int n = mat.row_size();
+        int rows = mat.row_size();
+        int cols = mat.col_size();
         Matrix newMat;
-        newMat.nrows = n;
-        newMat.ncols = n;
-        for (int i = 0; i < n; i++) {
-            for (int j = 0; j < n; j++) {
+        newMat.nrows = cols; //vertauscht wegen transponiert!!!
+        newMat.ncols = rows;
+        std::vector<double> data(newMat.alloc_size(), 0);
+        newMat.data = data;
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
                 newMat(j, i) = mat(i, j);
             }
         }
         mat = newMat;
     }
 
+    std::vector<double> mat_vec_multiplication(const matlib::Matrix& A, const std::vector<double>& b) {
+        if (A.col_size() != b.size()) {
+            std::cout << "Mat and Vec doesnt match!\n";
+        }
+        unsigned int cols = A.col_size();
+        unsigned int rows = A.row_size();
+        std::vector<double> result(rows, 0);
+        for (int i = 0; i < rows; i++) { //result vec
 
-    std::vector<double> mat_vec_multiplication(const std::vector<double>& A, const std::vector<double>& b) {
-        float n = b.size();
-        std::vector<double> result(b.size(), 0);
-        for (int k = 0; k < b.size(); k++) {
-
-            for (int j = 0; j < b.size(); j++) {
-                result[k] += A[k * n + j] * b[j];
+            for (int k = 0; k < cols; k++) { //calculation
+                result[i] += A(i, k) * b[k];
             }
         }
         return result;
@@ -243,7 +296,7 @@ namespace matlib {
         //double percentage = 0.0;
 
         //init r_old
-        std::vector<double> Ax = mat_vec_multiplication(A.getVec(), x);
+        std::vector<double> Ax = mat_vec_multiplication(A, x);
         r_old = vec_substraction(b, Ax);
         p_old = r_old;
 
@@ -335,95 +388,107 @@ namespace matlib {
 }
 
 matlib::Matrix getCoordinateVec(const std::vector<coordinate>& coord_list) {
-	matlib::Matrix res;
-	res.nrows = coord_list.size();
-	res.ncols = 2;
-	for (int i = 0; i < coord_list.size(); i++) {
-		res(i, 0) = coord_list[i].x;
-		res(i, 1) = coord_list[i].y;
-	}
-	return res;
+    matlib::Matrix res;
+    res.nrows = coord_list.size();
+    res.ncols = 2;
+    std::vector<double> data(res.alloc_size(), 0);
+    res.data = data;
+    for (int i = 0; i < res.row_size(); i++) {
+        res(i, 0) = coord_list[i].x;
+        res(i, 1) = coord_list[i].y;
+    }
+    return res;
 }
 std::vector<double> getResidualVec(const matlib::Matrix& coord_vec, const float& empty_xc, const float& empty_yc, const float& r) { //estimation of circle
-	int n = coord_vec.row_size();
-	std::vector<double> res(n, 0);
-	for (int i = 0; i < n; i++) {
-		res[i] = (coord_vec(i, 0) - empty_xc) * (coord_vec(i, 0) - empty_xc) + (coord_vec(i, 1) - empty_yc) * (coord_vec(i, 1) - empty_yc) - (r * r);
-	}
-	return res;
+    int n = coord_vec.row_size();
+    std::vector<double> res(n, 0);
+    for (int i = 0; i < n; i++) {
+        res[i] = (coord_vec(i, 0) - empty_xc) * (coord_vec(i, 0) - empty_xc) + (coord_vec(i, 1) - empty_yc) * (coord_vec(i, 1) - empty_yc) - (r * r);
+    }
+    return res;
 }
 
 matlib::Matrix getJacobiMatrix(const matlib::Matrix& coords, const float& xc, const float& yc, const float& r) { //fehler: r=(x,y) --> dri/dx, dri/dy, dri/dr
-	int n = coords.row_size();
-	matlib::Matrix res;
-	res.ncols = 3;
-	res.nrows = n;
-	for (int i = 0; i < n; i++) {
-		res(i, 0) = -2 * (coords(i, 0) - xc);
-		res(i, 1) = -2 * (coords(i, 1) - yc);
-		res(i, 2) = -2 * r;
-	}
-	return res;
+    int n = coords.row_size();
+    matlib::Matrix res;
+    res.ncols = 3;
+    res.nrows = n;
+    std::vector<double> data(res.alloc_size(), 0); //for alloc vec
+    res.data = data;
+    for (int i = 0; i < n; i++) {
+        res(i, 0) = -2 * (coords(i, 0) - xc);
+        res(i, 1) = -2 * (coords(i, 1) - yc);
+        res(i, 2) = -2 * r;
+    }
+    return res;
 }
 
-void optimizeSystem(const matlib::Matrix& JacobiMat, const std::vector<double>& residual, std::vector<double>& delta, const float convergence = 1e-9) {
-	delta[0] = 0;
-	delta[1] = 0;
-	delta[2] = 0;
-	matlib::Matrix T_J = JacobiMat;
-	matlib::transpose(T_J);
+void optimizeSystem(const matlib::Matrix JacobiMat, const std::vector<double>& residual, std::vector<double>& delta, const float convergence = 1e-9) {
+    delta[0] = 0;
+    delta[1] = 0;
+    delta[2] = 0;
+    matlib::Matrix T_J = JacobiMat;
+    transpose(T_J);
+    //replace for transpose -- little bit hacky
+    //std::vector<double> T_J_data = matlib::r_transpose(JacobiMat.getVec(), JacobiMat.col_size(), JacobiMat.row_size());
+    //matlib::transpose(T_J);
+    //matlib::Matrix T_J;
+    //T_J.ncols = JacobiMat.row_size();
+    //T_J.nrows = JacobiMat.col_size();
+    //T_J.data = T_J_data;
+    matlib::Matrix A = matlib::mat_multiplication(T_J, JacobiMat);
 
-	matlib::Matrix A = matlib::symm_mat_multiplication(T_J, JacobiMat);
 
-	// b = -J^T r
-	std::vector<double> b = matlib::mat_vec_multiplication(T_J.getVec(), residual);
-	for (auto& v : b) v *= -1;
+    // b = -J^T r
+    std::vector<double> b = matlib::mat_vec_multiplication(T_J, residual);
+    for (auto& v : b) v *= -1; // for sign
 
-	// delta initial guess
-	matlib::AUTO_linsolve_CG(A, b, delta, convergence, false);
+    // delta initial guess
+    matlib::AUTO_linsolve_CG(A, b, delta, convergence, false);
+
 }
 
 float r_circularFit(const float convergence, const std::vector<coordinate>& coord_list) {
-	float lampda = 1; // nur ändern falls numerisch instabil!!! dann: lampda<1
-	float xc = 0;
-	float yc = 0;
-	float r = 0;
-	float norm = 1; // damit in schleife geht
-	int iter = 0;
-	std::vector<double> delta(3, 0);
-	matlib::Matrix coord_vec = getCoordinateVec(coord_list);
+    float lampda = 1; // nur ändern falls numerisch instabil!!! dann: lampda<1
+    float xc = 0;
+    float yc = 0;
+    float r = 0;
+    float norm = 1; // damit in schleife geht
+    int iter = 0;
+    std::vector<double> delta(3, 0);
+    matlib::Matrix coord_vec = getCoordinateVec(coord_list);
 
-	//initial guess
-	int n = coord_vec.row_size();
-	float xsum = 0;
-	float ysum = 0;
-	float rsum = 0;
-	for (int i = 0; i < n; i++) {
-		xsum += coord_vec(i, 0);
-		ysum += coord_vec(i, 1);
-	}
-	xc = xsum / n;
-	yc = ysum / n;
-	for (int i = 0; i < n; i++) {
-		rsum += std::sqrt((coord_vec(i, 0) - xc) * (coord_vec(i, 0) - xc) + (coord_vec(i, 1) - yc) * (coord_vec(i, 1) - yc));
-	}
-	r = rsum / n;
+    //initial guess
+    int n = coord_vec.row_size();
+    float xsum = 0;
+    float ysum = 0;
+    float rsum = 0;
+    for (int i = 0; i < n; i++) {
+        xsum += coord_vec(i, 0);
+        ysum += coord_vec(i, 1);
+    }
+    xc = xsum / n;
+    yc = ysum / n;
+    for (int i = 0; i < n; i++) {
+        rsum += std::sqrt((coord_vec(i, 0) - xc) * (coord_vec(i, 0) - xc) + (coord_vec(i, 1) - yc) * (coord_vec(i, 1) - yc));
+    }
+    r = rsum / n;
 
-	//newton gauss
-	while (norm >= convergence * convergence) {
-		if (iter > 10000) {
-			break;
-		}
-		std::vector<double> residual = getResidualVec(coord_vec, xc, yc, r);
-		matlib::Matrix J = getJacobiMatrix(coord_vec, xc, yc, r);
-		optimizeSystem(J, residual, delta);
-		xc += lampda * delta[0];
-		yc += lampda * delta[1];
-		r += lampda * delta[2];
-		norm = (delta[0] * delta[0]) + (delta[1] * delta[1]) + (delta[2] * delta[2]);
-		iter++;
-	}
-	return r;
+    //newton gauss
+    while (norm >= convergence * convergence) {
+        if (iter > 10000) {
+            break;
+        }
+        std::vector<double> residual = getResidualVec(coord_vec, xc, yc, r);
+        matlib::Matrix J = getJacobiMatrix(coord_vec, xc, yc, r);
+        optimizeSystem(J, residual, delta);
+        xc += lampda * delta[0];
+        yc += lampda * delta[1];
+        r += lampda * delta[2];
+        norm = (delta[0] * delta[0]) + (delta[1] * delta[1]) + (delta[2] * delta[2]);
+        iter++;
+    }
+    return r;
 
 }
 
@@ -439,7 +504,7 @@ int main()
         coordinate p;
         double angle = 2 * PI * i / 100;
 
-        double noise_r = ((rand() % 1000) / 1000.0 - 0.5) * 0.1;
+        double noise_r = ((rand() % 1000) / 1000.0 - 0.5) * 2;
 
         double r_noisy = radius + noise_r;
 
@@ -448,16 +513,17 @@ int main()
         rad_list.push_back(r_noisy);
         coord_list.push_back(p);
     }
-    std::string haha;
-    std::cin >> haha;
-    int r = r_circularFit(0.000001, coord_list);
+
+    double r = r_circularFit(0.000001, coord_list);
     float rr = 0;
-    
+
     for (int i = 0; i < n; i++) {
         rr += rad_list[i];
+        std::cout << "x " << coord_list[i].x<<"; y "<<coord_list[i].y<<std::endl;
     }
     std::cout << "Radius fitted: " << r << std::endl;
-    std::cout << "Radius durchschnitt: " << rr/n << std::endl;
+    std::cout << typeid(decltype(r)).name() << std::endl;
+    std::cout << "Radius durchschnitt: " << rr / n << std::endl;
 
 }
 
