@@ -14,8 +14,15 @@ struct csr {
 };
 
 struct Matrix {
+    //constructor
+    Matrix(unsigned int rows = 0, unsigned int cols = 0) {
+        std::vector<double> constr(rows * cols, 0);
+        this->data = constr;
+        this->ncols = cols;
+        this->nrows = rows;
+    }
     std::vector<double> data;
-    int nrows, ncols;
+    unsigned int nrows, ncols;
 
     //double& operator()(int i, int j) { return data[i * ncols + j]; }
     //const double& operator()(int i, int j) const { return data[i * ncols + j]; }
@@ -38,7 +45,7 @@ struct Matrix {
 
         return data[idx];
     }
-    const double& operator()(int i, int j) const  {
+    const double& operator()(int i, int j) const {
         if (i < 0 || j < 0 || i >= nrows || j >= ncols) {
             std::cout << "INDEX ERROR: i=" << i << " j=" << j
                 << " nrows=" << nrows << " ncols=" << ncols << std::endl;
@@ -58,7 +65,7 @@ struct Matrix {
         return data[idx];
     }
     size_t size() const { return data.size(); }  // gibt nrows*ncols zurück
-    size_t alloc_size() const { return nrows*ncols; }  // gibt nrows*ncols zurück
+    size_t alloc_size() const { return nrows * ncols; }  // gibt nrows*ncols zurück
     int row_size() const { return nrows; }
     int col_size() const { return ncols; }
     std::vector<double> getVec() const { return data; }
@@ -82,7 +89,7 @@ Matrix mat_multiplication(const Matrix& A, const Matrix& B) {
     for (int i = 0; i < rows; i++) {//getting indices for result
         for (int j = 0; j < cols; j++) {
             for (int k = 0; k < A.col_size(); k++) { //sum loop
-                result(i, j) += A(i, k) * B(k, j);    
+                result(i, j) += A(i, k) * B(k, j);
             }
         }
     }
@@ -105,7 +112,7 @@ void transpose(Matrix& mat) {
     mat = newMat;
 }
 
-std::vector<double> mat_vec_multiplication(const matlib::Matrix& A, const std::vector<double>& b) {
+std::vector<double> mat_vec_multiplication(const Matrix& A, const std::vector<double>& b) {
     if (A.col_size() != b.size()) {
         std::cout << "Mat and Vec doesnt match!\n";
     }
@@ -318,3 +325,7 @@ bool AUTO_linsolve_CG(const Matrix A, const std::vector<double> b, std::vector<d
     }
 }
 
+int main() {
+    Matrix test;
+    return 0;
+}
